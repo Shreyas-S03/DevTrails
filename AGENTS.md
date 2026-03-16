@@ -1,28 +1,28 @@
 # AI Parametric Insurance for Gig Workers - Agent Handoff
 
-Last updated: 2026-03-16 (DB hardening + dual-model risk engine complete)
+Last updated: 2026-03-16 (requirements + gitignore + modular ML engine current)
 Repository root: `c:\Users\Shreyas S\OneDrive\Desktop\DevTrails`
 
 ## Project Goal
-Hackathon prototype for parametric insurance focused on gig workers (zomato/swiggy)
+Hackathon prototype for parametric insurance for gig workers.
 
 ## Non-Negotiable Constraints
-1. Coverage scope: **LOSS OF INCOME ONLY** from external disruptions:
+1. Coverage scope: LOSS OF INCOME ONLY from external disruptions:
    - Extreme weather
    - Severe pollution
    - Local strikes
-2. Explicitly excluded:
+2. Exclusions:
    - Health
    - Life
    - Accidents
    - Vehicle repairs
-3. Pricing basis: **STRICTLY WEEKLY**
+3. Pricing basis: STRICTLY WEEKLY
 4. Stack:
    - Backend/AI: Python, FastAPI, scikit-learn, LLM agents
    - Frontend: Next.js/React + Tailwind
    - Database: Supabase PostgreSQL
 
-## Canonical Rider Schema (must remain consistent across API/DB/state)
+## Canonical Rider Schema
 ```json
 {
   "rider_id": "RIDER_8023",
@@ -34,132 +34,93 @@ Hackathon prototype for parametric insurance focused on gig workers (zomato/swig
 }
 ```
 
-## Current Implementation Status
-Step 1 implemented and optimized (DB + model baseline).
+## Current State
 
-### 1) Supabase schema
+### Database
 File: `supabase/schema.sql`
 
-Created tables and safeguards:
-- `public.riders`
-  - `rider_id` primary key
-  - JSONB columns for nested schema sections:
-    - `profile`
-    - `real_time_state`
-    - `daily_performance`
-    - `insurance_profile`
-    - `fraud_telemetry`
-  - generated query columns:
-    - `primary_zone`
-    - `rider_status`
-    - `policy_active`
-    - `risk_score`
-    - `weekly_premium_paid`
-  - strict JSON checks:
-    - object shape checks
-    - required-key checks
-    - type checks for required fields
-    - range checks (lat/lon, risk_score in `[0,1]`, battery bounds, non-negative performance metrics)
-  - indexes:
-    - zone, policy_active (partial true), rider_status, risk_score
-    - GIN index on `real_time_state` JSONB
-  - audit fields:
-    - `created_at`
-    - `updated_at` via trigger
-- `public.claims`
-  - `claim_id` primary key
-  - `rider_id` foreign key to `riders(rider_id)`
-  - required fields:
-    - `amount`, `status`, `timestamp`, `disruption_type`
-    - `coverage_week_start` (strict weekly basis)
-  - lifecycle/ops fields:
-    - `decision_reason`
-    - `reviewed_at`
-    - `paid_at`
-    - `evidence_snapshot` JSONB
-    - `created_at`, `updated_at`
-  - disruption type constrained to:
-    - `EXTREME_WEATHER`
-    - `SEVERE_POLLUTION`
-    - `LOCAL_STRIKE`
-  - status constrained to:
-    - `PENDING`, `APPROVED`, `REJECTED`, `PAID`
-  - weekly enforcement:
-    - `coverage_week_start` must be Monday-aligned
-    - unique `(rider_id, disruption_type, coverage_week_start)` to prevent duplicate weekly claims for same disruption
-  - lifecycle consistency checks:
-    - `reviewed_at` required for approved/rejected/paid
-    - `paid_at` only allowed for paid claims
-    - `evidence_snapshot` must be JSON object
-  - indexes:
-    - rider/status/timestamp/coverage week
-    - partial index for pending claims
-
-Security and automation:
-- Added shared `set_updated_at()` trigger function.
-- Added update triggers for both tables.
-- Enabled RLS for both tables.
-- Added baseline policies for `authenticated` role (select/insert/update).
-
-### 2) Predictive risk model
-File: `backend/ml/risk_model.py`
-
 Implemented:
-- Data generation:
-  - `generate_dummy_training_data(...)` for v0 baseline (3 features)
-  - `generate_dummy_training_data_v1(...)` for improved realism:
-    - includes `aqi_index` and `strike_intensity_index`
-    - adds zone-level effects (`zone_baseline_risk`)
-    - adds seasonality (`seasonal_risk_index`)
-    - injects rare disruption outliers
-- Models are separated for easy selection/combination:
-  - `RandomForestRiskPricingModel`
-    - supports v0 and v1 feature sets
-    - includes optional hyperparameter tuning via `RandomizedSearchCV`
-  - `MonotonicHGBRRiskPricingModel`
-    - uses `HistGradientBoostingRegressor`
-    - applies monotonic constraints so pricing behavior stays consistent
-    - includes optional hyperparameter tuning via `RandomizedSearchCV`
-  - `EnsembleRiskPricingModel`
-    - weighted blend of RF + HGBR predictions
-- Evaluation utilities:
-  - `train_and_compare_models(...)` to train and compare RF vs HGBR
-  - `monotonic_violation_rate(...)` to quantify monotonic rule violations
-  - metrics: MAE, RMSE, R2, monotonic_violation_rate
-- Premium helpers:
-  - `calculate_weekly_premium(features_array)` (backward-compatible `rf_v0`)
-  - `calculate_weekly_premium_with_model(features_array, model_key=...)`
-    - `model_key` in `rf_v0`, `rf_v1`, `hgbr_v1`
-  - all pricing remains strictly weekly with bounds `[15, 40]`
+1. `public.riders` with JSONB fields mapped to canonical schema.
+2. Strong checks:
+   - Required keys, value types, range checks.
+   - Risk score bounds, lat/lon bounds, battery bounds.
+3. Generated columns for query speed:
+   - `primary_zone`, `rider_status`, `policy_active`, `risk_score`, `weekly_premium_paid`
+4. `public.claims` includes:
+   - `coverage_week_start`
+   - `decision_reason`, `reviewed_at`, `paid_at`, `evidence_snapshot`
+5. Weekly enforcement:
+   - Monday-aligned `coverage_week_start`
+   - Unique `(rider_id, disruption_type, coverage_week_start)`
+6. Triggers:
+   - `set_updated_at()` for both tables
+7. RLS:
+   - Enabled with baseline `authenticated` select/insert/update policies
 
-## How to Run Current Step
-1. Install dependencies:
-   - `pip install pandas numpy scikit-learn`
-2. Run model script (trains both v1 models, prints comparison metrics + sample premiums):
-   - `python backend/ml/risk_model.py`
-3. Programmatic training/testing:
-   - Use `train_and_compare_models(records=500, test_size=0.2, tune=False)`
-4. Optional hyperparameter tuning:
-   - Use `train_and_compare_models(..., tune=True)` for quick search
+### ML Risk/Pricing Engine
+Facade file: `backend/ml/risk_model.py`
+Modular package: `backend/ml/risk_engine/`
 
-## Model Comparison Guidance
-When comparing RF vs HGBR outputs, prioritize:
-1. Lower MAE and RMSE (prediction error quality)
-2. Higher R2 (fit quality)
-3. Lower monotonic violation rate (pricing consistency with business logic)
-4. Premium stability in plausible range, especially under feature stress tests
+Modules:
+1. `constants.py` - feature sets, bounds, monotonic constraints
+2. `utils.py` - clipping, feature-shape conversion, premium scaling
+3. `data_generation.py` - v0 and v1 synthetic data generators
+4. `models.py` - RF model, monotonic HGBR model, ensemble model
+5. `evaluation.py` - MAE/RMSE/R2 + monotonic violation checks
+6. `pipeline.py` - training/comparison suite + model cache + premium helper APIs
+7. `cli.py` - argparse commands and CLI runner
 
-Current local run snapshot (synthetic v1, no tuning):
-- `random_forest_v1`: MAE `0.0403`, RMSE `0.0486`, R2 `0.8484`
-- `monotonic_hgbr_v1`: MAE `0.0318`, RMSE `0.0385`, R2 `0.9048`, monotonic violations `0.0`
+Backward compatibility preserved:
+1. Existing imports from `backend.ml.risk_model` still work.
+2. Existing CLI command still works:
+   - `python backend/ml/risk_model.py ...`
+3. Compatibility aliases preserved:
+   - `_log_stage`, `_clip_risk`, `_to_feature_df`, `_build_cli_parser`, `_get_default_model`
 
-## Important Design Choices
-1. Kept rider nested data in JSONB to preserve canonical payload shape.
-2. Added strict DB constraints to enforce schema integrity and policy scope.
-3. Encapsulated ML logic in class + module function for easy FastAPI integration later.
-4. Weekly premium bounds hardcoded in one place for maintainability.
-5. Added weekly claims deduping and lifecycle audit columns for explainability and ops readiness.
+## Model Features and Variants
+1. v0 features:
+   - `historical_rain_mm`, `zone_risk_index`, `rider_experience_months`
+2. v1 features:
+   - v0 + `aqi_index`, `strike_intensity_index`, `seasonal_risk_index`, `zone_baseline_risk`
 
+Model options:
+1. `rf_v0`
+2. `rf_v1`
+3. `hgbr_v1` (monotonic constraints)
+4. `ensemble_v1` (RF + HGBR weighted blend)
+
+## CLI Commands
+1. Untuned comparison:
+   - `python backend/ml/risk_model.py --tune-mode off`
+2. Tuned comparison:
+   - `python backend/ml/risk_model.py --tune-mode on`
+3. Both runs:
+   - `python backend/ml/risk_model.py --tune-mode both`
+4. Custom ensemble weights:
+   - `python backend/ml/risk_model.py --tune-mode both --rf-weight 0.5 --hgbr-weight 0.5`
+5. Faster run:
+   - `python backend/ml/risk_model.py --tune-mode both --skip-monotonic-checks`
+6. Quiet mode:
+   - `python backend/ml/risk_model.py --tune-mode both --quiet`
+
+## Repo Hygiene
+1. Root `.gitignore` added for Python/Node/env/editor/Supabase artifacts.
+2. Root `requirements.txt` added with pinned core dependencies:
+   - `fastapi`, `uvicorn[standard]`, `pydantic`
+   - `numpy`, `pandas`, `scikit-learn`, `scipy`
+   - `supabase`, `python-dotenv`
+
+## Next Recommended Build Steps
+1. FastAPI scaffold:
+   - `POST /riders/upsert`
+   - `POST /pricing/weekly-quote`
+   - `POST /claims/create`
+2. Pydantic request/response schemas aligned to rider schema and DB constraints.
+3. Supabase repository layer with conflict-safe weekly claim inserts.
+4. Unit tests for:
+   - premium bounds and feature validation
+   - disruption/status constraints
+   - weekly uniqueness constraint
 
 ## Rule For Future Agents
-Whenever code changes are made, update this `AGENTS.md` so continuity is preserved.
+Whenever code changes are made, update this `AGENTS.md` to match actual codebase state.

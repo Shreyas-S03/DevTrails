@@ -1,0 +1,14 @@
+# Core API stack
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+pydantic==2.9.2
+
+# Data and ML
+numpy==1.26.4
+pandas==2.2.2
+scikit-learn==1.5.2
+scipy==1.14.1
+
+# Supabase and env management
+supabase==2.7.4
+python-dotenv==1.0.1
