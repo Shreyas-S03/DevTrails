@@ -1,10 +1,10 @@
 # AI Parametric Insurance for Gig Workers - Agent Handoff
 
-Last updated: 2026-03-16 (DB hardening + modular risk engine refactor + gitignore setup complete)
+Last updated: 2026-03-16 (DB hardening + dual-model risk engine complete)
 Repository root: `c:\Users\Shreyas S\OneDrive\Desktop\DevTrails`
 
 ## Project Goal
-Hackathon prototype for parametric insurance focused on gig workers.
+Hackathon prototype for parametric insurance focused on gig workers (zomato/swiggy)
 
 ## Non-Negotiable Constraints
 1. Coverage scope: **LOSS OF INCOME ONLY** from external disruptions:
@@ -36,14 +36,6 @@ Hackathon prototype for parametric insurance focused on gig workers.
 
 ## Current Implementation Status
 Step 1 implemented and optimized (DB + model baseline).
-
-### Repo hygiene
-- Added root `.gitignore` for:
-  - Python artifacts (`__pycache__`, virtualenvs, coverage, build/dist)
-  - Node/Next.js artifacts (`node_modules`, `.next`, `out`, logs)
-  - env/secrets (`.env*` except `.env.example`)
-  - editor/OS temp files
-  - local Supabase dir (`.supabase/`)
 
 ### 1) Supabase schema
 File: `supabase/schema.sql`
@@ -110,36 +102,9 @@ Security and automation:
 - Added baseline policies for `authenticated` role (select/insert/update).
 
 ### 2) Predictive risk model
-Primary files:
-- Facade/entrypoint: `backend/ml/risk_model.py`
-- Modular engine package: `backend/ml/risk_engine/`
+File: `backend/ml/risk_model.py`
 
 Implemented:
-- Modularity refactor:
-  - `constants.py`:
-    - feature sets, target name, monotonic constraints, risk/premium bounds
-  - `utils.py`:
-    - `clip_risk(...)`, `to_feature_df(...)`, `scale_risk_to_weekly_premium(...)`
-  - `data_generation.py`:
-    - `generate_dummy_training_data(...)`
-    - `generate_dummy_training_data_v1(...)`
-  - `models.py`:
-    - `RandomForestRiskPricingModel`
-    - `MonotonicHGBRRiskPricingModel`
-    - `EnsembleRiskPricingModel`
-  - `evaluation.py`:
-    - `evaluate_model(...)`
-    - monotonic violation utilities
-  - `pipeline.py`:
-    - `train_and_compare_models(...)`
-    - `run_comparison_suite(...)`
-    - model cache + premium helper APIs
-  - `cli.py`:
-    - parser + CLI run flow
-- Backward compatibility:
-  - `backend/ml/risk_model.py` now re-exports all previous public APIs and aliases old internal names:
-    - `_log_stage`, `_clip_risk`, `_to_feature_df`, `_build_cli_parser`, `_get_default_model`
-  - Existing commands and imports continue to work.
 - Data generation:
   - `generate_dummy_training_data(...)` for v0 baseline (3 features)
   - `generate_dummy_training_data_v1(...)` for improved realism:
@@ -158,11 +123,9 @@ Implemented:
   - `EnsembleRiskPricingModel`
     - weighted blend of RF + HGBR predictions
 - Evaluation utilities:
-  - `train_and_compare_models(...)` to train and compare RF vs HGBR vs Ensemble
-  - `run_comparison_suite(...)` to run untuned and tuned experiments together
-  - `monotonic_violation_rate(...)` and `monotonic_violation_rate_for_predictor(...)` to quantify monotonic rule violations
+  - `train_and_compare_models(...)` to train and compare RF vs HGBR
+  - `monotonic_violation_rate(...)` to quantify monotonic rule violations
   - metrics: MAE, RMSE, R2, monotonic_violation_rate
-  - stage logs: timestamped progress output during data generation, split, train/tune, prediction, and evaluation
 - Premium helpers:
   - `calculate_weekly_premium(features_array)` (backward-compatible `rf_v0`)
   - `calculate_weekly_premium_with_model(features_array, model_key=...)`
@@ -172,46 +135,23 @@ Implemented:
 ## How to Run Current Step
 1. Install dependencies:
    - `pip install pandas numpy scikit-learn`
-2. Compare untuned RF/HGBR/Ensemble:
-   - `python backend/ml/risk_model.py --tune-mode off`
-3. Compare tuned RF/HGBR/Ensemble:
-   - `python backend/ml/risk_model.py --tune-mode on`
-4. Compare both untuned and tuned in one run:
-   - `python backend/ml/risk_model.py --tune-mode both`
-5. Optional faster run (skip monotonic checks):
-   - `python backend/ml/risk_model.py --tune-mode both --skip-monotonic-checks`
-6. Optional tune intensity controls:
-   - `--rf-search-iter` (default 8)
-   - `--hgbr-search-iter` (default 6)
-   - `--tuning-cv` (default 3)
-7. Optional disable intermediate logs:
-   - `--quiet`
-8. Programmatic training/testing:
-   - `train_and_compare_models(records=500, test_size=0.2, tune=False)`
-   - `train_and_compare_models(records=500, test_size=0.2, tune=True)`
-   - `run_comparison_suite(records=500, test_size=0.2)`
-9. Entry points:
-   - CLI script: `python backend/ml/risk_model.py ...`
-   - Programmatic import:
-     - `from backend.ml.risk_model import ...`
-     - `from backend.ml.risk_engine import ...`
+2. Run model script (trains both v1 models, prints comparison metrics + sample premiums):
+   - `python backend/ml/risk_model.py`
+3. Programmatic training/testing:
+   - Use `train_and_compare_models(records=500, test_size=0.2, tune=False)`
+4. Optional hyperparameter tuning:
+   - Use `train_and_compare_models(..., tune=True)` for quick search
 
 ## Model Comparison Guidance
-When comparing RF vs HGBR vs Ensemble outputs, prioritize:
+When comparing RF vs HGBR outputs, prioritize:
 1. Lower MAE and RMSE (prediction error quality)
 2. Higher R2 (fit quality)
 3. Lower monotonic violation rate (pricing consistency with business logic)
 4. Premium stability in plausible range, especially under feature stress tests
 
-Current local run snapshot (synthetic v1):
-- Untuned:
-  - `random_forest_v1`: MAE `0.0403`, RMSE `0.0486`, R2 `0.8484`, monotonic violations `0.2857`
-  - `monotonic_hgbr_v1`: MAE `0.0318`, RMSE `0.0385`, R2 `0.9048`, monotonic violations `0.0000`
-  - `ensemble_v1`: MAE `0.0337`, RMSE `0.0400`, R2 `0.8975`, monotonic violations `0.1048`
-- Tuned:
-  - `random_forest_v1`: MAE `0.0391`, RMSE `0.0475`, R2 `0.8557`, monotonic violations `0.3619`
-  - `monotonic_hgbr_v1`: MAE `0.0314`, RMSE `0.0377`, R2 `0.9092`, monotonic violations `0.0000`
-  - `ensemble_v1`: MAE `0.0337`, RMSE `0.0400`, R2 `0.8978`, monotonic violations `0.1048`
+Current local run snapshot (synthetic v1, no tuning):
+- `random_forest_v1`: MAE `0.0403`, RMSE `0.0486`, R2 `0.8484`
+- `monotonic_hgbr_v1`: MAE `0.0318`, RMSE `0.0385`, R2 `0.9048`, monotonic violations `0.0`
 
 ## Important Design Choices
 1. Kept rider nested data in JSONB to preserve canonical payload shape.
@@ -220,17 +160,6 @@ Current local run snapshot (synthetic v1):
 4. Weekly premium bounds hardcoded in one place for maintainability.
 5. Added weekly claims deduping and lifecycle audit columns for explainability and ops readiness.
 
-## Next Recommended Steps
-1. Create FastAPI app with:
-   - `POST /riders/upsert`
-   - `POST /pricing/weekly-quote`
-   - `POST /claims/create`
-2. Add Pydantic models mirroring canonical Rider schema + DB constraints.
-3. Add Supabase access layer (insert/update riders, weekly claim insert with conflict handling).
-4. Add unit tests for:
-   - premium bounds
-   - invalid feature shapes
-   - DB disruption/status/weekly-uniqueness constraints
 
 ## Rule For Future Agents
 Whenever code changes are made, update this `AGENTS.md` so continuity is preserved.
