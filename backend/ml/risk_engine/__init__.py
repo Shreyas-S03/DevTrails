@@ -18,6 +18,7 @@ from .pipeline import (
     calculate_weekly_premium,
     calculate_weekly_premium_with_model,
     get_default_model,
+    predict_hgbr_risk,
     run_comparison_suite,
     train_and_compare_models,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "run_comparison_suite",
     "calculate_weekly_premium",
     "calculate_weekly_premium_with_model",
+    "predict_hgbr_risk",
     "get_default_model",
     "_default_model_cache",
     "build_cli_parser",

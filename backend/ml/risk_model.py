@@ -34,6 +34,7 @@ try:
         log_stage,
         monotonic_violation_rate,
         monotonic_violation_rate_for_predictor,
+        predict_hgbr_risk,
         run_cli,
         run_comparison_suite,
         scale_risk_to_weekly_premium,
@@ -65,6 +66,7 @@ except ImportError:
         log_stage,
         monotonic_violation_rate,
         monotonic_violation_rate_for_predictor,
+        predict_hgbr_risk,
         run_cli,
         run_comparison_suite,
         scale_risk_to_weekly_premium,
@@ -107,6 +109,7 @@ __all__ = [
     "_get_default_model",
     "calculate_weekly_premium",
     "calculate_weekly_premium_with_model",
+    "predict_hgbr_risk",
     "run_cli",
 ]
 

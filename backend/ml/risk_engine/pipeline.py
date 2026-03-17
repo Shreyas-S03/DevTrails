@@ -270,3 +270,16 @@ def calculate_weekly_premium_with_model(
     model_key in {'rf_v0', 'rf_v1', 'hgbr_v1'}.
     """
     return get_default_model(model_key).calculate_weekly_premium(features_array)
+
+
+def predict_hgbr_risk(
+    features_array: Iterable[Iterable[float]] | np.ndarray,
+) -> np.ndarray:
+    """
+    Predict risk score(s) using the default tuned-compatible HGBR v1 model.
+    Input order:
+      [historical_rain_mm, zone_risk_index, rider_experience_months,
+       aqi_index, strike_intensity_index, seasonal_risk_index, zone_baseline_risk]
+    """
+    model = get_default_model("hgbr_v1")
+    return model.predict_risk_score(features_array)

@@ -9,6 +9,8 @@ pandas==2.2.2
 scikit-learn==1.5.2
 scipy==1.14.1
 
-# Supabase and env management
-supabase==2.7.4
+# Env management
 python-dotenv==1.0.1
+
+# Orchestration graph
+langgraph>=0.2.0,<0.3.0
