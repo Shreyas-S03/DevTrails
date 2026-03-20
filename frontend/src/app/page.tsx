@@ -84,6 +84,13 @@ export default function Dashboard() {
     }
   };
 
+  const resetDemo = () => {
+    localStorage.removeItem("rider_dashboard_state");
+    setRiderState(INITIAL_RIDER_STATE);
+    setModalData(null);
+    window.location.reload();
+  };
+
   const triggerClaim = async (disruption: any, spoofGPS: boolean = false) => {
     setLoading(true);
     setModalData(null);
@@ -368,6 +375,15 @@ export default function Dashboard() {
               <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest text-center">Processing LLM Risk Evaluation</span>
             </div>
           )}
+
+          <div className="mt-auto pt-8">
+            <button
+              onClick={resetDemo}
+              className="w-full py-3 rounded-2xl bg-slate-800/20 border border-slate-700/50 text-slate-500 text-xs font-bold uppercase tracking-widest hover:bg-rose-500/10 hover:border-rose-500/30 hover:text-rose-400 transition-all duration-300"
+            >
+              Reset Demo State (Wipe Cache)
+            </button>
+          </div>
         </aside>
       </div>
     </div>
