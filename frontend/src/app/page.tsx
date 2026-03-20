@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { ShieldCheck, CloudLightning, Sun, MapPinOff, AlertTriangle, CheckCircle, IndianRupee, Activity, Navigation, Zap, Calendar, TrendingUp } from "lucide-react";
 
-export default function Dashboard() {
-  const [riderState, setRiderState] = useState({
-    rider_id: "RIDER_8023",
+const INITIAL_RIDER_STATE = {
+  rider_id: "RIDER_8023",
     profile: {
       name: "Ravi Kumar",
       phone: "+91-9876543210",
@@ -33,7 +32,27 @@ export default function Dashboard() {
       is_mock_location_enabled: false,
       battery_level: 45,
     },
-  });
+  };
+
+export default function Dashboard() {
+  const [riderState, setRiderState] = useState(INITIAL_RIDER_STATE);
+
+  // Load from local storage on first mount to prevent resetting on page reload
+  useEffect(() => {
+    const savedData = localStorage.getItem("rider_dashboard_state");
+    if (savedData) {
+      try {
+        setRiderState(JSON.parse(savedData));
+      } catch (e) {
+        console.error("Failed to parse local storage", e);
+      }
+    }
+  }, []);
+
+  // Save to local storage whenever rider state changes
+  useEffect(() => {
+    localStorage.setItem("rider_dashboard_state", JSON.stringify(riderState));
+  }, [riderState]);
 
   const [modalData, setModalData] = useState<any>(null);
   const [loading, setLoading] = useState(false);
@@ -85,6 +104,11 @@ export default function Dashboard() {
       });
       const data = await response.json();
       setModalData(data);
+      
+      // Update earnings dynamically if claim is approved
+      if (data.claim_status === "APPROVED" && data.payout_amount) {
+        mockRiderState.daily_performance.earnings_today += data.payout_amount;
+      }
     } catch (error) {
       setModalData({ claim_status: "ERROR", reason: "Connection failed to backend API", payout_amount: 0 });
     } finally {
