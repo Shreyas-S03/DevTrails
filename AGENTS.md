@@ -106,12 +106,12 @@ Files:
 7. `nodes.py`:
    - `fetch_db_context`
    - `evaluate_parametric`
-   - `fraud_check_llm` (deterministic mock)
+   - `fraud_check_llm` (Upgraded to real LangChain + ChatOllama agent analyzing telemetry)
    - `risk_evaluator` (calls `predict_hgbr_risk`)
    - `execute_decision` (decision + claim insert)
-   - deterministic tool functions:
+   - deterministic fallback functions:
      - `evaluate_parametric_rules(...)`
-     - `check_fraud_telemetry(...)`
+     - `check_fraud_telemetry(...)` (Used as LLM fallback)
 8. `graph.py`:
    - deterministic flow:
      - `fetch_db_context -> evaluate_parametric -> fraud_check_llm -> risk_evaluator -> execute_decision`
