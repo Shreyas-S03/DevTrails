@@ -3,9 +3,19 @@ from __future__ import annotations
 from typing import Any, Callable
 from uuid import uuid4
 
+import json
 import numpy as np
 
+from pydantic import BaseModel, Field
+from langchain_core.prompts import PromptTemplate
+from langchain_ollama import ChatOllama
+from langchain_core.output_parsers import JsonOutputParser
+
 from backend.ml.risk_model import predict_hgbr_risk
+
+class FraudDecision(BaseModel):
+    is_fraud: bool = Field(description="True if fraudulent, False otherwise")
+    reason: str = Field(description="Explanation for the decision")
 
 from .config import OrchestratorSettings
 from .repository import SupabaseRepository
@@ -116,8 +126,37 @@ def make_fraud_check_node(
         if state.get("final_decision"):
             return state
 
-        fraud_telemetry = state.get("rider_db_data", {}).get("fraud_telemetry", {})
-        state["is_fraud"] = check_fraud_telemetry(fraud_telemetry, settings=settings)
+        try:
+            llm = ChatOllama(model="llama3", temperature=0, format="json")
+            parser = JsonOutputParser(pydantic_object=FraudDecision)
+            
+            prompt_template = """You are a Fraud Detection Agent for a parametric insurance platform.
+Analyze the provided telemetry and disruption state data.
+
+CRITICAL RULES:
+1. If 'is_mock_location_enabled' is true, you MUST flag it as fraud.
+2. If 'current_speed_kmph' > 15.0 during a severe weather claim, you MUST flag it as fraud.
+
+{format_instructions}
+You MUST return ONLY valid JSON.
+
+State Data:
+{state_data}"""
+
+            prompt = PromptTemplate(
+                template=prompt_template,
+                input_variables=["state_data"],
+                partial_variables={"format_instructions": parser.get_format_instructions()}
+            )
+            
+            chain = prompt | llm | parser
+            decision = chain.invoke({"state_data": json.dumps(state)})
+            state["is_fraud"] = decision.get("is_fraud", False)
+        except Exception:
+            # Fallback to deterministic check if local Ollama model fails
+            fraud_telemetry = state.get("rider_db_data", {}).get("fraud_telemetry", {})
+            state["is_fraud"] = check_fraud_telemetry(fraud_telemetry, settings=settings)
+
         return state
 
     return fraud_check_llm

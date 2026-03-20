@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from .config import load_settings
 from .graph import build_claim_graph
@@ -14,6 +15,14 @@ from .utils import normalize_disruption_type
 app = FastAPI(
     title="AI Parametric Insurance Orchestrator",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 _compiled_graph = None
