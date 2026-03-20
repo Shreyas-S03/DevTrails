@@ -8,9 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from .config import load_settings
 from .graph import build_claim_graph
 from .repository import SupabaseRepository
-from .schemas import ClaimDecision, ClaimRequest
+from .schemas import ClaimDecision, ClaimRequest, PremiumQuoteRequest, PremiumQuoteResponse
 from .state import ClaimState
-from .utils import normalize_disruption_type
+from .utils import normalize_disruption_type, build_hgbr_feature_vector
+from backend.ml.risk_model import calculate_weekly_premium_with_model, predict_hgbr_risk
+import numpy as np
 
 app = FastAPI(
     title="AI Parametric Insurance Orchestrator",
@@ -76,3 +78,24 @@ def evaluate_claim(payload: ClaimRequest) -> ClaimDecision:
     if not final_decision:
         raise HTTPException(status_code=500, detail="Claim evaluation did not produce a final decision.")
     return ClaimDecision(**final_decision)
+
+
+@app.post("/quote_premium", response_model=PremiumQuoteResponse)
+def quote_premium(payload: PremiumQuoteRequest) -> PremiumQuoteResponse:
+    settings = load_settings()
+    repository = SupabaseRepository(settings=settings)
+    
+    rider = repository.fetch_rider_by_id(payload.rider_id)
+    if not rider:
+        raise HTTPException(status_code=404, detail="Rider not found")
+
+    features = build_hgbr_feature_vector(rider_db_data=rider, disruption={})
+    f_array = np.asarray([features], dtype=float)
+    
+    risk_scores = predict_hgbr_risk(f_array)
+    premium_quotes = calculate_weekly_premium_with_model(f_array, model_key="hgbr_v1")
+    
+    return PremiumQuoteResponse(
+        weekly_premium_amount=round(float(premium_quotes[0]), 2),
+        risk_score=round(float(risk_scores[0]), 4),
+    )

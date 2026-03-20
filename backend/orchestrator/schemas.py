@@ -20,3 +20,12 @@ class ClaimDecision(BaseModel):
     claim_status: Literal["APPROVED", "DENIED", "FRAUD_FLAGGED", "MANUAL_REVIEW"]
     payout_amount: float = Field(..., ge=0.0)
     reason: str
+
+
+class PremiumQuoteRequest(BaseModel):
+    rider_id: str = Field(..., min_length=1)
+
+
+class PremiumQuoteResponse(BaseModel):
+    weekly_premium_amount: float
+    risk_score: float
