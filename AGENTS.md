@@ -1,6 +1,6 @@
 # AI Parametric Insurance for Gig Workers - Agent Handoff
 
-Last updated: 2026-03-17 (Step 2 orchestrator implemented + REST Supabase auth for sb_secret)
+Last updated: 2026-03-20 (Phase 2 completed - Next.js UI, Langchain Agent, Premium API via HGBR)
 Repository root: `c:\Users\Shreyas S\OneDrive\Desktop\DevTrails`
 
 ## Project Goal
@@ -18,8 +18,8 @@ Hackathon prototype for parametric insurance focused on gig workers.
    - Vehicle repairs
 3. Pricing basis: STRICTLY WEEKLY
 4. Stack:
-   - Backend/AI: Python, FastAPI, scikit-learn, LangGraph
-   - Frontend: Next.js/React + Tailwind
+   - Backend/AI: Python, FastAPI, scikit-learn, LangGraph, LangChain (Ollama/OpenAI)
+   - Frontend: Next.js (App Router), React, Tailwind CSS, Lucide React
    - Database: Supabase PostgreSQL
 
 ## Canonical Rider Schema
@@ -115,6 +115,16 @@ Files:
 8. `graph.py`:
    - deterministic flow:
      - `fetch_db_context -> evaluate_parametric -> fraud_check_llm -> risk_evaluator -> execute_decision`
+9. **CORS Configuration**: `CORSMiddleware` has been heavily integrated into `main.py` allowing wide-open `http://localhost:3000` (Next.js) handshakes.
+
+### 4) Next.js React Dashboard (Phase 2 Addition)
+Root: `frontend/`
+
+Implemented:
+1. **Premium Aesthetics**: A stunning dark-mode "Glassmorphism" UI rendering `backdrop-blur` and dynamic Tailwind gradients.
+2. **Interactive Demo Simulator**: Sidebar to trigger `EXTREME_WEATHER` variants and GPS Spoof payloads.
+3. **Offline LocalStorage Persistence**: `riderState` relies natively on `useEffect` to safely hydrate/store simulated session states across hot reloads.
+4. **Hydration Guards**: Next.js `<html>` root natively blocks browser extensions from causing server-client React mismatch errors via `suppressHydrationWarning`.
 
 ## Endpoint Behavior (`POST /evaluate_claim`)
 Input:
@@ -140,6 +150,20 @@ Decision logic:
 Returns:
 ```json
 { "claim_status": "...", "payout_amount": 0.0, "reason": "..." }
+```
+
+### `POST /quote_premium` (Phase 2 Addition)
+Input:
+- `rider_id`
+
+Decision logic:
+1. Extracts state from Supabase repository.
+2. Derives a live parametric feature vector (`utils.build_hgbr_feature_vector`).
+3. Pushes vector immediately into the `hgbr_v1` machine learning regressor (`predict_hgbr_risk` and `calculate_weekly_premium_with_model`).
+
+Returns:
+```json
+{ "weekly_premium_amount": 32.40, "risk_score": 0.9412 }
 ```
 
 ## Disruption Type Normalization
@@ -178,15 +202,17 @@ Added:
 Required env vars:
 1. `SUPABASE_URL`
 2. `SUPABASE_SECRET_KEY` (preferred for REST flow) or `SUPABASE_SERVICE_ROLE_KEY` (fallback)
-3. `.env` is auto-loaded by orchestrator config via `python-dotenv`
+3. `.env` is strongly recommended and auto-loaded by orchestrator config via `python-dotenv`.
 
 ## Run Commands
-1. Install deps:
-   - `pip install -r requirements.txt`
-2. Start API:
-   - `uvicorn backend.orchestrator.main:app --reload`
-3. Open docs:
-   - `http://127.0.0.1:8000/docs`
+1. Start Python API (Port `8000`):
+   - `cd backend`
+   - `pip install -r requirements.txt` (Contains fastAPI, scikit, langchain, langgraph)
+   - `uvicorn orchestrator.main:app --reload`
+2. Start Next.js App (Port `3000`):
+   - `cd frontend`
+   - `npm install`
+   - `npm run dev`
 
 ## Verification Notes
 Local static checks completed:
